@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use advent_of_code::read_txt;
 
@@ -12,13 +12,48 @@ fn main() {
 
 type Coordinate = (i32, i32);
 
+struct TravelHistory {
+    map: HashSet<Coordinate>,
+}
+
+impl TravelHistory {
+    fn new() -> TravelHistory {
+        let mut travel_history = TravelHistory {
+            map: HashSet::new(),
+        };
+        travel_history.mark_visit((0, 0));
+        travel_history
+    }
+
+    /// Returns true if the coordinate has never been visited before.
+    fn mark_visit(&mut self, coordinate: Coordinate) -> bool {
+        self.map.insert(coordinate)
+    }
+}
+
+struct Scheduler {
+    coordinates: Vec<Coordinate>,
+    index: usize,
+}
+
+impl Scheduler {
+    fn increment(&mut self) {
+        self.index = (self.index + 1) % self.coordinates.len();
+    }
+
+    fn get_coordinate(&self) -> Coordinate {
+        self.coordinates[self.index]
+    }
+
+    fn update_coordinate(&mut self, coordinate: Coordinate) {
+        self.coordinates[self.index] = coordinate;
+    }
+}
+
 fn part1(input: &str) -> String {
-    let mut map: HashMap<Coordinate, u32> = HashMap::new();
+    let mut travel_history = TravelHistory::new();
     let orders = input.chars().into_iter();
     let mut current_coordinate = (0, 0);
-
-    map.insert(current_coordinate, 1);
-    let mut at_least_once = 1;
 
     for order in orders {
         match order {
@@ -37,74 +72,48 @@ fn part1(input: &str) -> String {
             _ => {}
         }
 
-        let next_coordinate_visits = map.get(&current_coordinate);
-        if next_coordinate_visits.is_none() {
-            at_least_once += 1;
-            map.insert(current_coordinate, 1);
-        }
+        travel_history.mark_visit(current_coordinate);
     }
 
-    at_least_once.to_string()
-}
-
-struct CoordinateSwitcher<'a> {
-    coordinates: Vec<&'a mut Coordinate>,
-}
-
-impl<'a> CoordinateSwitcher<'a> {
-    fn get_coordinate(&self, turn: usize) -> Coordinate {
-        **(self.coordinates.get(turn % self.coordinates.len()).unwrap())
-    }
-
-    fn mutate_coordinate(&mut self, turn: usize, mutation: Coordinate) {
-        let size = self.coordinates.len();
-        let coordinate = self.coordinates.get_mut(turn % size).unwrap();
-
-        coordinate.0 += mutation.0;
-        coordinate.1 += mutation.1;
-    }
+    travel_history.map.len().to_string()
 }
 
 fn part2(input: &str) -> String {
-    let mut map: HashMap<Coordinate, u32> = HashMap::new();
+    let mut travel_history = TravelHistory::new();
     let orders = input.chars().into_iter();
+    let starting_coordinate = (0, 0);
 
-    let mut santa_coordinate = (0, 0);
-    let mut robo_coordinate = (0, 0);
-    let mut turn = 0;
-
-    let mut switcher = CoordinateSwitcher {
-        coordinates: vec![&mut santa_coordinate, &mut robo_coordinate],
+    let mut scheduler = Scheduler {
+        coordinates: vec![starting_coordinate, starting_coordinate],
+        index: 0,
     };
 
-    map.insert(switcher.get_coordinate(turn), 1);
-    let mut at_least_once = 1;
-
     for order in orders {
+        let current_coordinate = scheduler.get_coordinate();
+        let (mut x, mut y) = current_coordinate;
+
         match order {
             '<' => {
-                switcher.mutate_coordinate(turn, (-1, 0));
+                x -= 1;
             }
             '>' => {
-                switcher.mutate_coordinate(turn, (1, 0));
+                x += 1;
             }
             '^' => {
-                switcher.mutate_coordinate(turn, (0, 1));
+                y += 1;
             }
             'v' => {
-                switcher.mutate_coordinate(turn, (0, -1));
+                y -= 1;
             }
             _ => {}
         }
 
-        let next_coordinate = switcher.get_coordinate(turn);
-        let next_coordinate_visits = map.get(&next_coordinate);
-        if next_coordinate_visits.is_none() {
-            at_least_once += 1;
-            map.insert(next_coordinate, 1);
-        }
-        turn += 1;
+        let new_coordinate = (x, y);
+
+        scheduler.update_coordinate(new_coordinate);
+        travel_history.mark_visit(new_coordinate);
+        scheduler.increment();
     }
 
-    at_least_once.to_string()
+    travel_history.map.len().to_string()
 }

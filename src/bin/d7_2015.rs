@@ -4,147 +4,100 @@ use advent_of_code::read_txt;
 
 fn main() {
     let input = read_txt("d7_2015");
-    let result = part1(&input);
+    let result = both_part(&input);
     println!("{}", result);
-    // For part 2, replace the value of wire b in the input file with the result of part 1
 }
 
-#[derive(Debug)]
-struct Register {
-    map: HashMap<String, u16>,
+#[derive(Debug, Clone)]
+enum Instruction<'a> {
+    NOT(&'a str),
+    AND(&'a str, &'a str),
+    OR(&'a str, &'a str),
+    LSHIFT(&'a str, u16),
+    RSHIFT(&'a str, u16),
+    ASSIGN(&'a str),
+    NUMBER(u16),
 }
 
-impl Register {
-    fn new() -> Register {
-        Register {
-            map: HashMap::new(),
-        }
-    }
-
-    fn insert(&mut self, register: &str, value: u16) {
-        self.map.insert(register.to_string(), value);
-    }
-
-    fn eval(&self, instruction: &str) -> Result<u16, &str> {
-        let instruction: Vec<&str> = instruction.split_whitespace().collect();
-
-        match instruction.len() {
-            1 => {
-                let is_number = instruction[0].parse::<u16>().is_ok();
-
-                let value: u16 = if is_number {
-                    instruction[0].parse().unwrap()
-                } else {
-                    let register_value = self.map.get(instruction[0]);
-
-                    let register_value = if register_value.is_none() {
-                        return Err("key not exist yet, skipping");
-                    } else {
-                        *register_value.unwrap()
-                    };
-
-                    register_value
-                };
-
-                Ok(value)
-            }
-            2 => {
-                let is_number = instruction[1].parse::<u16>().is_ok();
-
-                let value: u16 = if is_number {
-                    instruction[1].parse().unwrap()
-                } else {
-                    let register_value = self.map.get(instruction[1]);
-
-                    let register_value = if register_value.is_none() {
-                        return Err("key not exist yet, skipping");
-                    } else {
-                        *register_value.unwrap()
-                    };
-
-                    register_value
-                };
-
-                Ok(!value)
-            }
-            3 => {
-                let is_left_number = instruction[0].parse::<u16>().is_ok();
-                let is_right_number = instruction[2].parse::<u16>().is_ok();
-
-                let l_value: u16 = if is_left_number {
-                    instruction[0].parse().unwrap()
-                } else {
-                    let register_value = self.map.get(instruction[0]);
-
-                    let register_value = if register_value.is_none() {
-                        return Err("key not exist yet, skipping");
-                    } else {
-                        *register_value.unwrap()
-                    };
-
-                    register_value
-                };
-                let r_value: u16 = if is_right_number {
-                    instruction[2].parse().unwrap()
-                } else {
-                    let register_value = self.map.get(instruction[2]);
-
-                    let register_value = if register_value.is_none() {
-                        return Err("key not exist yet, skipping");
-                    } else {
-                        *register_value.unwrap()
-                    };
-
-                    register_value
-                };
-
-                let value = if instruction[1] == "AND" {
-                    l_value & r_value
-                } else if instruction[1] == "OR" {
-                    l_value | r_value
-                } else if instruction[1] == "LSHIFT" {
-                    l_value << r_value
-                } else if instruction[1] == "RSHIFT" {
-                    l_value >> r_value
-                } else {
-                    0
-                };
-
-                Ok(value)
-            }
-            _ => Err("instruction type not found"),
-        }
-    }
-}
-
-type Instruction = (String, String);
-
-fn part1(input: &str) -> String {
-    let mut register = Register::new();
-    let mut instructions: Vec<Instruction> = Vec::new();
+fn both_part(input: &str) -> String {
+    let mut instructions: HashMap<&str, Instruction> = HashMap::new();
 
     for line in input.lines() {
         let line: Vec<&str> = line.split("->").collect();
 
-        let lhs = line[0].trim();
-        let rhs = line[1].trim();
+        let key = line[1].trim();
+        let instruction = line[0].trim();
 
-        instructions.push((lhs.to_string(), rhs.to_string()));
-    }
+        let instruction: Vec<&str> = instruction.split_whitespace().collect();
 
-    while instructions.len() > 0 {
-        let (lhs, rhs) = instructions.remove(0);
+        match instruction.len() {
+            1 => {
+                let value = instruction[0];
+                instructions.insert(key, Instruction::ASSIGN(value));
+            }
+            2 => {
+                let value = instruction[1];
+                instructions.insert(key, Instruction::NOT(value));
+            }
+            3 => {
+                let left_value = instruction[0];
+                let right_value = instruction[2];
 
-        let result = register.eval(&lhs);
-
-        if result.is_err() {
-            instructions.push((lhs, rhs));
-            continue;
+                match instruction[1] {
+                    "AND" => instructions.insert(key, Instruction::AND(left_value, right_value)),
+                    "OR" => instructions.insert(key, Instruction::OR(left_value, right_value)),
+                    "LSHIFT" => instructions.insert(
+                        key,
+                        Instruction::LSHIFT(left_value, right_value.parse::<u16>().unwrap()),
+                    ),
+                    "RSHIFT" => instructions.insert(
+                        key,
+                        Instruction::RSHIFT(left_value, right_value.parse::<u16>().unwrap()),
+                    ),
+                    _ => panic!("Unknown instruction"),
+                };
+            }
+            _ => panic!("Unknown instruction"),
         }
-
-        let result = result.unwrap();
-        register.insert(&rhs, result);
     }
 
-    format!("{:#?}", register.map.get("a"))
+    format!("{:#?}", calculate("a", &mut instructions))
+}
+
+fn calculate<'a>(character: &'a str, instructions: &mut HashMap<&'a str, Instruction<'a>>) -> u16 {
+    if let Ok(number) = character.parse::<u16>() {
+        return number;
+    }
+
+    let solution = instructions.remove(character).unwrap();
+    let result = match solution {
+        Instruction::NUMBER(number) => number,
+        Instruction::ASSIGN(value) => {
+            let result = calculate(value, instructions);
+            result
+        }
+        Instruction::NOT(value) => {
+            let result = !calculate(value, instructions);
+            result
+        }
+        Instruction::AND(left_value, right_value) => {
+            let result = calculate(left_value, instructions) & calculate(right_value, instructions);
+            result
+        }
+        Instruction::OR(left_value, right_value) => {
+            let result = calculate(left_value, instructions) | calculate(right_value, instructions);
+            result
+        }
+        Instruction::LSHIFT(left_value, right_value) => {
+            let result = calculate(left_value, instructions) << right_value;
+            result
+        }
+        Instruction::RSHIFT(left_value, right_value) => {
+            let result = calculate(left_value, instructions) >> right_value;
+            result
+        }
+    };
+
+    instructions.insert(character, Instruction::NUMBER(result));
+    result
 }

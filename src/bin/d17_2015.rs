@@ -1,5 +1,6 @@
+use std::collections::HashMap;
+
 use advent_of_code::read_txt;
-use itertools::Itertools;
 
 fn main() {
     let input = read_txt("d17_2015");
@@ -9,66 +10,55 @@ fn main() {
     println!("{}", result);
 }
 
-fn part1(input: &str) -> String {
-    let containers: Vec<u32> = input
+fn parse_input(input: &str) -> Vec<i32> {
+    input
         .lines()
         .map(|x| x.parse().unwrap())
-        .sorted()
-        .collect_vec();
+        .collect::<Vec<i32>>()
+}
 
-    let mut count = 0;
-    for i in 1..(containers.len() + 1) {
-        let mut combinations = containers.iter().combinations(i);
-        while let Some(c) = combinations.next() {
-            let sum = c.iter().fold(0, |sum, current| {
-                sum + *current
-            });
+fn part1(input: &str) -> String {
+    let mut solution: HashMap<i32, i32> = HashMap::new();
+    let containers = parse_input(input);
+    find_combination(&containers, 0, 150, 0, &mut solution);
 
-            if sum == 150 {
-                count += 1;
-            }
-        }
-    }
-    
-    format!("{} combinations", count)
+    format!("{}", solution.values().sum::<i32>())
 }
 
 fn part2(input: &str) -> String {
-    let containers: Vec<u32> = input
-        .lines()
-        .map(|x| x.parse().unwrap())
-        .sorted()
-        .collect_vec();
+    let mut solution: HashMap<i32, i32> = HashMap::new();
+    let containers = parse_input(input);
+    find_combination(&containers, 0, 150, 0, &mut solution);
 
-    let mut min_container_used_option: Option<u32> = None;
-    let mut count = 0;
-    for i in 1..(containers.len() + 1) {
-        let mut combinations = containers.iter().combinations(i);
-        while let Some(c) = combinations.next() {
-            let sum = c.iter().fold(0, |sum, current| {
-                sum + *current
-            });
+    format!("{:?}", solution.keys().min().unwrap())
+}
 
-            match min_container_used_option {
-                Some(min_container_used) => {
-                    if sum == 150 && c.len() == min_container_used as usize {
-                        count += 1;
-                    }
-
-                    if sum == 150 && c.len() < min_container_used as usize {
-                        count = 1;
-                        min_container_used_option = Some(c.len() as u32);
-                    }
-                }
-                None => {
-                    if sum == 150 {
-                        count += 1;
-                        min_container_used_option = Some(c.len() as u32);
-                    }
-                }
-            }
-        }
+fn find_combination(
+    containers: &Vec<i32>,
+    offset: usize,
+    remaining_eggnog: i32,
+    taken: i32,
+    solution: &mut HashMap<i32, i32>,
+) {
+    if remaining_eggnog < 0 {
+        return;
     }
-    
-    format!("{} combinations", count)
+
+    if offset == containers.len() && remaining_eggnog > 0 {
+        return;
+    }
+
+    if remaining_eggnog == 0 {
+        *solution.entry(taken).or_insert(0) += 1;
+        return;
+    }
+
+    find_combination(
+        containers,
+        offset + 1,
+        remaining_eggnog - containers[offset],
+        taken + 1,
+        solution,
+    );
+    find_combination(containers, offset + 1, remaining_eggnog, taken, solution);
 }
